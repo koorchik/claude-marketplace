@@ -1,0 +1,13 @@
+{
+  "name": "auk-review",
+  "owner": {
+    "name": "Viktor Turskyi"
+  },
+  "plugins": [
+    {
+      "name": "auk-review",
+      "source": "./plugins/auk-review",
+      "description": "Adds /analyze-frontend-architecture skill"
+    }
+  ]
+}
