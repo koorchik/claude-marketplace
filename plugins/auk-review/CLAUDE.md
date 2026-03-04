@@ -27,3 +27,7 @@ These are intentional positions baked into the skill — not defaults to overrid
 - **API layer as a class**: Service classes with constructor injection, not bare exported functions.
 - **Hooks consume services, not SDKs**: Hooks never import Firebase/axios/etc. directly — they wrap the API service layer.
 - **Fix duplication with layering, not merging**: Duplicate API calls across hooks → extract shared service layer, don't merge into mega-hook.
+
+## Git Conventions
+
+- Never add `Co-Authored-By` lines to commit messages.

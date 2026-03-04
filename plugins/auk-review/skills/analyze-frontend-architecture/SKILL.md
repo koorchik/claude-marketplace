@@ -14,7 +14,7 @@ You are performing an architecture review of a React frontend project. Your goal
 
 This review is grounded in four principles that reinforce each other:
 
-1. **Single Level of Abstraction (SLA)**: Each component should operate at one consistent abstraction level. A page component composes high-level domain components — it should not mix `<OrderSummary>` with raw `<div className="flex gap-2">`. When you see a component mixing abstraction levels, that's the most important signal something needs restructuring.
+1. **Single Level of Abstraction (SLA)**: Every component — pages, features, and leaf components alike — should operate at one consistent abstraction level. A page component composes high-level domain components; a feature component composes its own sub-domain components; a card component composes styled primitives. None of them should mix levels. A `<DashboardPage>` shouldn't mix `<StatsPanel>` with raw `<div className="flex gap-2">`, and equally a `<StatsPanel>` shouldn't mix `<MetricCard>` with inline `<span>` math. SLA is recursive: if you fix the page but leave its children full of mixed-level markup, the architecture hasn't actually improved. When you see a component mixing abstraction levels at any depth, that's the most important signal something needs restructuring.
 
 2. **Clear Data Flow with API Abstraction**: Every component should have a well-defined API (props in, callbacks out). Data should flow predictably — parent owns state, children receive what they need, callbacks bubble events up. Critically, there should be an **API abstraction layer** between the application and external services. Hooks and components should never call Firebase, fetch, axios, or any external API directly. Instead, a **service class** (e.g., `api/ApplicationsApi.ts` or `services/ApplicationService.ts`) should own all external communication, and hooks should be thin wrappers that manage React state on top of these services. The service should be a class — not bare exported functions — because real API layers have dependencies that need constructor injection (base URL, auth tokens, HTTP client instance, timeout config). A class makes these dependencies explicit and testable: `new ApplicationsApi({ baseUrl, token })` in production vs `new ApplicationsApi({ baseUrl: 'http://mock' })` in tests. This layering means backends can be swapped (Firebase → REST → GraphQL) without touching any hook or component.
 
@@ -35,17 +35,33 @@ Use Glob and Read to understand the project layout:
 
 Build a mental map: pages → features → shared components → hooks → state.
 
-### Step 2: Analyze page-level components for SLA
+### Step 2a: Analyze page components for SLA
 
 For each page component, check:
 - Does it compose high-level domain components at a consistent abstraction level?
 - Or does it mix domain components with raw HTML elements, inline styles, or low-level logic?
 - Are there blocks of JSX that could be named (extracted into a component with a descriptive name)?
+- `.map()` callbacks with complex inline JSX — if the mapped content has its own logic or structure, it should be a named component
 
-**What to look for:**
-- A `<DashboardPage>` that has `<StatsPanel>` next to a raw `<div>` with 15 lines of markup — SLA violation
-- Inline state transformations or data formatting inside JSX — should be in a hook or utility
-- Conditional rendering logic (ternaries, `&&` chains) that obscures the page's high-level structure
+### Step 2b: Analyze child components for SLA (do not skip this step)
+
+After finishing page-level analysis, open and read every non-trivial child component file — feature panels, forms, cards, list items, modals, etc. For each one, apply the same SLA check you applied to pages. This is a separate pass, not an afterthought.
+
+Concretely: Read the source of each component in `components/`, `features/`, `shared/`, or similar directories. For each, ask:
+- Does this component operate at one consistent abstraction level internally?
+- Does it compose its own sub-components consistently, or does it mix named sub-components with raw `<div>` blocks?
+- Does it contain `.map()` callbacks with 10+ lines of inline JSX that should be their own component?
+- Does it mix domain logic (data transformations, calculations, formatting) with rendering?
+
+**Examples of child-level SLA violations:**
+- A `<StatsPanel>` that renders `<MetricCard>` for some metrics but uses raw `<div><span>{value}</span></div>` for others
+- A `<CompanyCard>` that has a clean header section but then drops into 15 lines of raw markup for the actions area
+- A `<TrackerList>` that uses `<TrackerRow>` for active items but inlines different markup for archived items
+- A `<UserForm>` that uses `<FormField>` for text inputs but renders `<select>` elements with raw `<option>` tags directly
+
+If a child component is clean (operates at one consistent abstraction level), note it briefly in the report as well-structured. The goal is to show that every component was examined, not just pages.
+
+**The test (applies at every level)**: for any component, can you describe what it renders in a single sentence using only the names of its children? If you have to say "...and also some divs that handle the loading state and error display and a formatted date", those unnamed pieces are SLA violations.
 
 ### Step 3: Analyze component APIs (props and callbacks)
 
@@ -235,7 +251,7 @@ Be direct and constructive. The report should read like advice from a senior col
 
 ## Important Notes
 
-- Analyze ALL page-level components, not just a sample. Pages are where architecture problems are most visible.
+- Analyze ALL page-level components, not just a sample. Pages are where architecture problems are most visible. Then follow the component tree downward — SLA violations in child components (feature panels, forms, cards, list items) are just as important as violations in pages.
 - Do not comment on CSS, styling, or visual design — this review is purely about component structure and data flow.
 - Do not suggest adding libraries or changing the tech stack unless the existing patterns are fundamentally broken.
 - Prioritize issues by impact — lead with the findings that would make the biggest difference if fixed.
