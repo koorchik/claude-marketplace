@@ -68,9 +68,47 @@ Look for:
 - Do multiple pages independently render the same header, navigation, or footer?
 - Is there a `Layout`, `AppShell`, or `MainLayout` component that provides the application shell?
 - If pages each render their own `<PageHeader>` with hardcoded navigation arrays, that's duplicated app-level structure that should be centralized into a Layout component.
-- The Layout component should be composed **inside each Page component**, not at the router level. This keeps pages self-contained and end-to-end — each page explicitly declares its own shell. This approach is framework-agnostic (works with React Router, Next.js, or any routing solution), supports multiple layout slots (header, sidebar, content), and means routing changes don't affect page layout.
-- Example: each page wraps its content in `<AppLayout header={<PageHeader />}>` rather than each page independently rendering `<PageHeader navItems={[...]}>`.
 
+**The Layout must be composed inside each Page component, not at the router level.** This is a deliberate architectural choice:
+- **Framework-agnostic**: Works identically with React Router, Next.js, Remix, or any routing. No dependency on `<Outlet />` or router-specific APIs.
+- **Configurable**: Pages can pass config props (title, subtitle) to customize the shell. For advanced cases, pages can pass JSX to named slots (sidebar, footer) — something router-level layouts make awkward.
+- **Self-contained pages**: Each page is a complete, end-to-end unit. Reading a page file shows you everything it renders, including its shell.
+- **Routing independence**: Changing routes, adding nested routes, or restructuring the router never affects page layout.
+
+**Example of what to recommend for Layout:**
+- BAD — Layout at the router level using `<Outlet />`:
+  ```tsx
+  // App.tsx — couples layout to React Router
+  <Route element={<AppLayout><Outlet /></AppLayout>}>
+    <Route path="/" element={<HomePage />} />
+    <Route path="/settings" element={<SettingsPage />} />
+  </Route>
+  ```
+  This ties layout to React Router specifically, makes pages incomplete fragments that only work inside an Outlet, and makes it hard for individual pages to customize their shell (e.g., a settings page that needs a sidebar). Do not recommend this pattern.
+
+- GOOD — Each page composes the Layout itself:
+  ```tsx
+  // components/AppLayout.tsx — owns ALL layout markup (header, nav, footer)
+  export default function AppLayout({ title, subtitle, children }: Props) {
+    return (
+      <div className="app-layout">
+        <PageHeader title={title} subtitle={subtitle} nav={APP_NAV} />
+        <main>{children}</main>
+      </div>
+    );
+  }
+
+  // pages/HomePage.tsx — self-contained, complete page
+  export default function HomePage() {
+    return (
+      <AppLayout title="Dashboard">
+        <HomeOverview stats={stats} />
+        <RecentActivity items={items} />
+      </AppLayout>
+    );
+  }
+  ```
+  By default, `AppLayout` should own all layout markup (header, nav, footer) internally and accept only configuration props like `title`. Pages pass simple config, not full JSX components. This keeps `AppLayout` as the single source of truth for the application shell. Passing JSX as slot props (e.g., `header={<Custom />}`) is acceptable for advanced cases but should not be the default recommendation. No router dependency — works with any framework.
 ### Step 5: Analyze data flow and API abstraction
 
 Trace how data moves through the app:
@@ -202,3 +240,4 @@ Be direct and constructive. The report should read like advice from a senior col
 - Do not suggest adding libraries or changing the tech stack unless the existing patterns are fundamentally broken.
 - Prioritize issues by impact — lead with the findings that would make the biggest difference if fixed.
 - If the project is well-architected, say so! Not every review needs to find problems. A short report that says "this is solid, here are two minor suggestions" is perfectly valid.
+- When recommending a Layout component, always show it composed inside Page components (each page wraps its content in `<AppLayout>`). Never recommend `<Outlet />` or router-level layout wrappers — the Layout-inside-Page pattern is framework-agnostic and keeps pages self-contained.
